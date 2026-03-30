@@ -1,5 +1,59 @@
-*
-!target/*-runner
-!target/*-runner.jar
-!target/lib/*
-!target/quarkus-app/*
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode
+.idea
+*.iml
+*.iws
+*.ipr
+.DS_Store
+.settings
+.classpath
+.project
+
+# Maven
+target/
+.m2/
+
+# Build artifacts
+*.class
+*.jar
+*.war
+*.ear
+
+# Documentation
+README.md
+docs/
+*.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.jenkins/
+
+# Docker
+docker-compose*.yml
+Dockerfile
+.dockerignore
+
+# Logs
+*.log
+logs/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Node (if using Node tools)
+node_modules/
+npm-debug.log
+
+# Misc
+.env
+.env.local
+*.swp
+*.swo
+*~

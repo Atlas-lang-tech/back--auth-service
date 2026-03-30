@@ -1,45 +1,87 @@
-#Maven
-target/
-pom.xml.tag
-pom.xml.releaseBackup
-pom.xml.versionsBackup
-release.properties
-.flattened-pom.xml
+# Quarkus
+/target/
+.quarkus/
 
-# Eclipse
-.project
-.classpath
-.settings/
-bin/
+# Maven
+.m2/
+maven-wrapper.jar
+maven-wrapper.properties
 
-# IntelliJ
-.idea
-*.ipr
+# IDE
+.idea/
+.vscode/
 *.iml
 *.iws
-
-# NetBeans
-nb-configuration.xml
-
-# Visual Studio Code
-.vscode
-.factorypath
-
-# OSX
+*.ipr
+*.iml
 .DS_Store
-
-# Vim
+.settings/
+.classpath
+.project
 *.swp
 *.swo
+*~
+.env.local
 
-# patch
-*.orig
-*.rej
+# Logs
+*.log
+logs/
 
-# Local environment
+# OS
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Build
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# JWT Keys (IMPORTANT - DO NOT COMMIT)
+src/main/resources/META-INF/resources/privateKey.pem
+src/main/resources/META-INF/resources/privateKey.pem.*
+
+# Environment files
 .env
+.env.local
+.env.*.local
 
-# Plugin directory
-/.quarkus/cli/plugins/
-# TLS Certificates
-.certs/
+# Database files (if using embedded)
+*.db
+*.sqlite
+
+# Node modules (if using Node tools)
+node_modules/
+npm-debug.log
+
+# IDE specific
+.factorypath
+
+# Gradle (if applicable)
+.gradle/
+build/
+
+# Package manager locks (if needed)
+package-lock.json
+yarn.lock
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Tests
+test-output/
+.testrepository/
+
+# Application generated files
+generated/
