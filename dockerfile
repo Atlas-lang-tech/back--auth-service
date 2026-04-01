@@ -1,7 +1,7 @@
 # =========================
 # 1. Stage: Build
 # =========================
-FROM quay.io/quarkus/ubi-quarkus-maven:3.3.2-java17 AS build
+FROM quay.io/quarkus/ubi-quarkus-maven:3.41.1-java17 AS build
 WORKDIR /app
 
 # Копируем pom.xml и зависимости
