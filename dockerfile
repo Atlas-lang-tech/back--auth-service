@@ -1,36 +1,37 @@
 # =========================
 # 1. Stage: Build
 # =========================
-FROM quay.io/quarkus/ubi-quarkus-maven:3.41.1-java17 AS build
+FROM maven:3.9.9-eclipse-temurin-17 AS build
 WORKDIR /app
 
-# Копируем pom.xml и зависимости
+# Кэш зависимостей
 COPY pom.xml .
 COPY mvnw .
 COPY .mvn .mvn
+RUN chmod +x mvnw
 RUN ./mvnw dependency:go-offline -B
 
-# Копируем весь код
+# Копируем исходники
 COPY src src
 
-# Сборка в jar
+# Сборка
 RUN ./mvnw package -DskipTests
 
 # =========================
 # 2. Stage: Runtime
 # =========================
-FROM quay.io/quarkus/ubi-quarkus-jvm:3.3.2-java17
+FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /work/
 
-# Копируем jar из build stage
+# Копируем jar
 COPY --from=build /app/target/*-runner.jar app.jar
 
-# Для gRPC нужен открытый порт
+# Порты (HTTP + gRPC)
 EXPOSE 8080 9000
 
-# Опционально: добавляем папку для ключей
+# Папка под ключи
 VOLUME ["/etc/keys"]
 
-# Запуск приложения
-CMD ["java", "-jar", "app.jar"]
+# Запуск
+ENTRYPOINT ["java","-jar","/work/app.jar"]
