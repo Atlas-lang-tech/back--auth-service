@@ -22,8 +22,6 @@ public class AuthService {
 	@Inject
 	RedisService redisService;
 
-	@Inject
-	UserEventProducer eventProducer;
 
 	@Transactional
 	public TokenResponse register(RegisterRequest request) {
@@ -36,8 +34,6 @@ public class AuthService {
 		user.username = request.username();
 		user.password = BcryptUtil.bcryptHash(request.password());
 		userRepository.persist(user);
-
-		eventProducer.sendUserRegistered(user.id.toString(), user.email);
 
 		return generateTokenPair(user);
 	}
