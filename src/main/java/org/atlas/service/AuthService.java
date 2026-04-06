@@ -40,7 +40,7 @@ public class AuthService {
 
 	public TokenResponse login(LoginRequest request) {
 		User user = userRepository
-			.findByEmail(request.emailOrUsername())
+			.findByEmail(request.email())
 			.orElseThrow(() -> new NotAuthorizedException("Invalid credentials"));
 
 		if (!user.active) {

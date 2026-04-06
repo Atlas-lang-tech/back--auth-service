@@ -13,7 +13,7 @@ public class AuthDto {
 	) {}
 
 	public record LoginRequest(
-		@NotBlank String emailOrUsername,
+		@NotBlank @Email String email,
 		@NotBlank String password
 	) {}
 
