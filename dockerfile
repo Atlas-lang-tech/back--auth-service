@@ -9,16 +9,13 @@ COPY .mvn .mvn
 RUN chmod +x mvnw
 RUN ./mvnw -B dependency:go-offline
 COPY src src
-RUN ./mvnw -B package -DskipTests
+RUN ./mvnw -B package -DskipTests -Dquarkus.package.jar.type=uber-jar
 
 # =========================
 # 2. Runtime stage
 # =========================
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /work/
-COPY --from=build /app/target/quarkus-app/lib/ /work/lib/
-COPY --from=build /app/target/quarkus-app/*.jar /work/
-COPY --from=build /app/target/quarkus-app/app/ /work/app/
-COPY --from=build /app/target/quarkus-app/quarkus/ /work/quarkus/
+COPY --from=build /app/target/*-runner.jar app.jar
 EXPOSE 8080 9000
-ENTRYPOINT ["java", "-jar", "/work/quarkus-run.jar"]
+ENTRYPOINT ["java", "-jar", "/work/app.jar"]
