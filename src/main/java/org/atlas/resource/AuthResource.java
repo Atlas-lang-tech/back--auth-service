@@ -44,7 +44,7 @@ public class AuthResource {
 	@Operation(summary = "Register new user")
 	public Response register(@Valid RegisterRequest request) {
 		TokenResponse response = authService.register(request);
-		return Response.status(Response.Status.CREATED).entity(response).build();
+		return Response.status(Response.Status.CREATED).build();
 	}
 
 	@POST
@@ -55,7 +55,9 @@ public class AuthResource {
 		TokenResponse tokenResponse = authService.login(request);
 		UserResponse userResponse = authService.getProfile(request.email());
 		LoginResponse loginResponse = new LoginResponse(tokenResponse, userResponse);
-		return Response.ok(loginResponse).build();
+		return Response.ok(loginResponse)
+			.header("Set-Cookie", createRefreshTokenCookie(tokenResponse.refreshToken()))
+			.build();
 	}
 
 	@POST
@@ -64,7 +66,9 @@ public class AuthResource {
 	@Operation(summary = "Renew access token")
 	public Response refresh(@Valid RefreshRequest request) {
 		TokenResponse tokenResponse = authService.refresh(request);
-		return Response.ok(tokenResponse).build();
+		return Response.ok(tokenResponse)
+			.header("Set-Cookie", createRefreshTokenCookie(tokenResponse.refreshToken()))
+			.build();
 	}
 
 	@POST
@@ -74,7 +78,17 @@ public class AuthResource {
 	public Response logout() {
 		String userId = jwtService.getSubject();
 		authService.logout(userId);
-		return Response.noContent().build();
+		return Response.noContent()
+			.header("Set-Cookie", clearRefreshTokenCookie())
+			.build();
+	}
+
+	private String createRefreshTokenCookie(String refreshToken) {
+		return "refreshToken=" + refreshToken + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + jwtService.getRefreshTokenExpiry();
+	}
+
+	private String clearRefreshTokenCookie() {
+		return "refreshToken=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
 	}
 
 
