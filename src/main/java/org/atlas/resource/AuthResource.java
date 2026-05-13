@@ -84,11 +84,11 @@ public class AuthResource {
 	}
 
 	private String createRefreshTokenCookie(String refreshToken) {
-		return "refreshToken=" + refreshToken + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + jwtService.getRefreshTokenExpiry();
+		return "refreshToken=" + refreshToken + "; Path=/; HttpOnly; SameSite=None; Max-Age=" + jwtService.getRefreshTokenExpiry();
 	}
 
 	private String clearRefreshTokenCookie() {
-		return "refreshToken=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
+		return "refreshToken=; Path=/; HttpOnly; SameSite=None; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
 	}
 
 
