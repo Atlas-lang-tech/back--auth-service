@@ -1,18 +1,27 @@
 package org.atlas.resource;
 
-import jakarta.annotation.security.PermitAll;
-import jakarta.annotation.security.RolesAllowed;
-import jakarta.inject.Inject;
-import jakarta.validation.Valid;
-import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
-import org.atlas.dto.AuthDto.*;
+import org.atlas.dto.AuthDto.LoginRequest;
+import org.atlas.dto.AuthDto.LoginResponse;
+import org.atlas.dto.AuthDto.RefreshRequest;
+import org.atlas.dto.AuthDto.RegisterRequest;
+import org.atlas.dto.AuthDto.TokenResponse;
+import org.atlas.dto.AuthDto.UserResponse;
 import org.atlas.service.AuthService;
 import org.atlas.service.EmailService;
 import org.atlas.service.JwtService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
+
+import jakarta.annotation.security.PermitAll;
+import jakarta.annotation.security.RolesAllowed;
+import jakarta.inject.Inject;
+import jakarta.validation.Valid;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 
 @Path("/api/auth")
 @Produces(MediaType.APPLICATION_JSON)
@@ -43,8 +52,10 @@ public class AuthResource {
 	@PermitAll
 	@Operation(summary = "User login")
 	public Response login(@Valid LoginRequest request) {
-		TokenResponse response = authService.login(request);
-		return Response.ok(response).build();
+		TokenResponse tokenResponse = authService.login(request);
+		UserResponse userResponse = authService.getProfile(request.email());
+		LoginResponse loginResponse = new LoginResponse(tokenResponse, userResponse);
+		return Response.ok(loginResponse).build();
 	}
 
 	@POST
@@ -52,8 +63,8 @@ public class AuthResource {
 	@PermitAll
 	@Operation(summary = "Renew access token")
 	public Response refresh(@Valid RefreshRequest request) {
-		TokenResponse response = authService.refresh(request);
-		return Response.ok(response).build();
+		TokenResponse tokenResponse = authService.refresh(request);
+		return Response.ok(tokenResponse).build();
 	}
 
 	@POST
@@ -66,15 +77,6 @@ public class AuthResource {
 		return Response.noContent().build();
 	}
 
-	@GET
-	@Path("/me")
-	@RolesAllowed({ "USER" })
-	@Operation(summary = "Current user")
-	public Response getProfile() {
-		String userId = jwtService.getSubject();
-		UserResponse profile = authService.getProfile(userId);
-		return Response.ok(profile).build();
-	}
 
 	@POST
 	@Path("/email")

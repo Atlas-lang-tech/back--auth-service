@@ -1,14 +1,19 @@
 package org.atlas.service;
 
+import org.atlas.dto.AuthDto.LoginRequest;
+import org.atlas.dto.AuthDto.RefreshRequest;
+import org.atlas.dto.AuthDto.RegisterRequest;
+import org.atlas.dto.AuthDto.TokenResponse;
+import org.atlas.dto.AuthDto.UserResponse;
+import org.atlas.entity.User;
+import org.atlas.repository.UserRepository;
+
 import io.quarkus.elytron.security.common.BcryptUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.NotAuthorizedException;
-import org.atlas.dto.AuthDto.*;
-import org.atlas.entity.User;
-import org.atlas.repository.UserRepository;
 
 @ApplicationScoped
 public class AuthService {
@@ -43,10 +48,6 @@ public class AuthService {
 			.findByEmail(request.email())
 			.orElseThrow(() -> new NotAuthorizedException("Invalid credentials"));
 
-		if (!user.active) {
-			throw new NotAuthorizedException("Account is disabled");
-		}
-
 		if (!BcryptUtil.matches(request.password(), user.password)) {
 			throw new NotAuthorizedException("Invalid credentials");
 		}
@@ -73,8 +74,8 @@ public class AuthService {
 		redisService.deleteRefreshToken(userId);
 	}
 
-	public UserResponse getProfile(String userId) {
-		User user = userRepository.findById(java.util.UUID.fromString(userId));
+	public UserResponse getProfile(String email) {
+		User user = userRepository.findByEmail(email).orElse(null);
 		if (user == null) throw new jakarta.ws.rs.NotFoundException("User not found");
 		return toUserResponse(user);
 	}

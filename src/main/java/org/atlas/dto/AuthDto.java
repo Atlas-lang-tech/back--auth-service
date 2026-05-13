@@ -22,4 +22,6 @@ public class AuthDto {
 	public record TokenResponse(String accessToken, String refreshToken, long expiresIn) {}
 
 	public record UserResponse(String id, String email, String username, String role) {}
+
+	public record LoginResponse(TokenResponse token, UserResponse user) {}
 }
