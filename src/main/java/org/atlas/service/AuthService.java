@@ -80,6 +80,12 @@ public class AuthService {
 		return toUserResponse(user);
 	}
 
+	public java.util.List<UserResponse> getAllUsers() {
+		return userRepository.listAll().stream()
+			.map(this::toUserResponse)
+			.toList();
+	}
+
 	private TokenResponse generateTokenPair(User user) {
 		String accessToken = jwtService.generateAccessToken(user);
 		String refreshToken = jwtService.generateRefreshToken(user);

@@ -12,8 +12,8 @@ import org.atlas.service.JwtService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
+import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.PermitAll;
-import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
@@ -51,8 +51,14 @@ public class AuthResource {
     @PermitAll
     @Operation(summary = "Register new user")
     public Response register(@Valid RegisterRequest request) {
-        authService.register(request);
-        return Response.status(Response.Status.CREATED).build();
+        TokenResponse tokenResponse = authService.register(request);
+        UserResponse userResponse  = authService.getProfile(request.email());
+        LoginResponse loginResponse = new LoginResponse(tokenResponse, userResponse);
+
+        return Response.status(Response.Status.CREATED)
+                .entity(loginResponse)
+                .cookie(buildRefreshCookie(tokenResponse.refreshToken()))
+                .build();
     }
 
     // ------------------------------------------------------------------ //
@@ -95,7 +101,7 @@ public class AuthResource {
 
     @POST
     @Path("/logout")
-    @RolesAllowed({"USER", "ADMIN"})
+    @Authenticated
     @Operation(summary = "Log out from system")
     public Response logout() {
         String userId = jwtService.getSubject();

@@ -43,5 +43,6 @@ public class User extends PanacheEntityBase {
 	public enum Role {
 		USER,
 		ADMIN,
+		MODERATOR,
 	}
 }
