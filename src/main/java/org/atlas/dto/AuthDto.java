@@ -23,5 +23,7 @@ public class AuthDto {
 
 	public record UserResponse(String id, String email, String username, String role) {}
 
+	public record UpdateRoleRequest(@NotBlank String role) {}
+
 	public record LoginResponse(TokenResponse token, UserResponse user) {}
 }

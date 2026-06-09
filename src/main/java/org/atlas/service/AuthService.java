@@ -86,6 +86,31 @@ public class AuthService {
 			.toList();
 	}
 
+	@Transactional
+	public UserResponse updateRole(String userId, String role) {
+		User.Role newRole;
+		try {
+			newRole = User.Role.valueOf(role.trim().toUpperCase());
+		} catch (IllegalArgumentException e) {
+			throw new BadRequestException("Invalid role: " + role);
+		}
+
+		java.util.UUID id;
+		try {
+			id = java.util.UUID.fromString(userId);
+		} catch (IllegalArgumentException e) {
+			throw new BadRequestException("Invalid user id: " + userId);
+		}
+
+		User user = userRepository.findById(id);
+		if (user == null) {
+			throw new jakarta.ws.rs.NotFoundException("User not found");
+		}
+
+		user.role = newRole;
+		return toUserResponse(user);
+	}
+
 	private TokenResponse generateTokenPair(User user) {
 		String accessToken = jwtService.generateAccessToken(user);
 		String refreshToken = jwtService.generateRefreshToken(user);

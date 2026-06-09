@@ -1,10 +1,13 @@
 package org.atlas.resource;
 
+import java.util.List;
+
 import org.atlas.dto.AuthDto.LoginRequest;
 import org.atlas.dto.AuthDto.LoginResponse;
 import org.atlas.dto.AuthDto.RefreshRequest;
 import org.atlas.dto.AuthDto.RegisterRequest;
 import org.atlas.dto.AuthDto.TokenResponse;
+import org.atlas.dto.AuthDto.UpdateRoleRequest;
 import org.atlas.dto.AuthDto.UserResponse;
 import org.atlas.service.AuthService;
 import org.atlas.service.EmailService;
@@ -17,8 +20,11 @@ import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.PATCH;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.NewCookie;
@@ -170,5 +176,31 @@ public class AuthResource {
                 .secure(false)
                 .sameSite(NewCookie.SameSite.LAX)
                 .build();
+    }
+
+    // ------------------------------------------------------------------ //
+    //  LIST ALL USERS
+    //------------------------------------------------------------------ //
+
+    @GET
+    @Path("/users")
+    @Authenticated
+    @Operation(summary = "Get all users")
+    public Response getAllUsers() {
+        List<UserResponse> users = authService.getAllUsers();
+        return Response.ok(users).build();
+    }
+
+    // ------------------------------------------------------------------ //
+    //  UPDATE ROLE
+    // ------------------------------------------------------------------ //
+
+    @PATCH
+    @Path("/{id}/role")
+    @Authenticated
+    @Operation(summary = "Update user role")
+    public Response updateRole(@PathParam("id") String id, @Valid UpdateRoleRequest request) {
+        UserResponse user = authService.updateRole(id, request.role());
+        return Response.ok(user).build();
     }
 }
