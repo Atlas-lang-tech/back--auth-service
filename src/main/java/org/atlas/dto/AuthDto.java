@@ -25,5 +25,15 @@ public class AuthDto {
 
 	public record UpdateRoleRequest(@NotBlank String role) {}
 
+	public record UpdateUserRequest(
+		@NotBlank @Size(min = 3, max = 50) String username,
+		@NotBlank @Email String email
+	) {}
+
+	public record UpdatePasswordRequest(
+		@NotBlank String currentPassword,
+		@NotBlank @Size(min = 8, max = 100) String newPassword
+	) {}
+
 	public record LoginResponse(TokenResponse token, UserResponse user) {}
 }

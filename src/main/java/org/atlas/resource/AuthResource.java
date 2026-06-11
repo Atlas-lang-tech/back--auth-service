@@ -7,7 +7,9 @@ import org.atlas.dto.AuthDto.LoginResponse;
 import org.atlas.dto.AuthDto.RefreshRequest;
 import org.atlas.dto.AuthDto.RegisterRequest;
 import org.atlas.dto.AuthDto.TokenResponse;
+import org.atlas.dto.AuthDto.UpdatePasswordRequest;
 import org.atlas.dto.AuthDto.UpdateRoleRequest;
+import org.atlas.dto.AuthDto.UpdateUserRequest;
 import org.atlas.dto.AuthDto.UserResponse;
 import org.atlas.service.AuthService;
 import org.atlas.service.EmailService;
@@ -20,6 +22,7 @@ import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.PATCH;
 import jakarta.ws.rs.POST;
@@ -196,11 +199,63 @@ public class AuthResource {
     // ------------------------------------------------------------------ //
 
     @PATCH
-    @Path("/{id}/role")
+    @Path("/user/{id}/role")
     @Authenticated
     @Operation(summary = "Update user role")
     public Response updateRole(@PathParam("id") String id, @Valid UpdateRoleRequest request) {
         UserResponse user = authService.updateRole(id, request.role());
         return Response.ok(user).build();
+    }
+
+    // ------------------------------------------------------------------ //
+    //  CURRENT USER
+    // ------------------------------------------------------------------ //
+
+    @GET
+    @Path("/user/me")
+    @Authenticated
+    @Operation(summary = "Get current authenticated user")
+    public Response getCurrentUser() {
+        UserResponse user = authService.getProfileById(jwtService.getSubject());
+        return Response.ok(user).build();
+    }
+
+    // ------------------------------------------------------------------ //
+    //  UPDATE PROFILE
+    // ------------------------------------------------------------------ //
+
+    @PATCH
+    @Path("/user/{id}")
+    @Authenticated
+    @Operation(summary = "Update user profile")
+    public Response updateUser(@PathParam("id") String id, @Valid UpdateUserRequest request) {
+        UserResponse user = authService.updateUser(id, request.username(), request.email());
+        return Response.ok(user).build();
+    }
+
+    // ------------------------------------------------------------------ //
+    //  CHANGE PASSWORD
+    // ------------------------------------------------------------------ //
+
+    @PATCH
+    @Path("/user/{id}/password")
+    @Authenticated
+    @Operation(summary = "Change user password")
+    public Response updatePassword(@PathParam("id") String id, @Valid UpdatePasswordRequest request) {
+        authService.updatePassword(id, request.currentPassword(), request.newPassword());
+        return Response.noContent().build();
+    }
+
+    // ------------------------------------------------------------------ //
+    //  DELETE ACCOUNT
+    // ------------------------------------------------------------------ //
+
+    @DELETE
+    @Path("/user/{id}")
+    @Authenticated
+    @Operation(summary = "Delete user account")
+    public Response deleteUser(@PathParam("id") String id) {
+        authService.deleteUser(id);
+        return Response.noContent().build();
     }
 }

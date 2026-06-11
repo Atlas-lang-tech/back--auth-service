@@ -80,6 +80,44 @@ public class AuthService {
 		return toUserResponse(user);
 	}
 
+	public UserResponse getProfileById(String userId) {
+		return toUserResponse(findUserOr404(userId));
+	}
+
+	@Transactional
+	public UserResponse updateUser(String userId, String username, String email) {
+		User user = findUserOr404(userId);
+
+		// Email міняється — переконуємось, що він ще ніким не зайнятий
+		if (!user.email.equalsIgnoreCase(email) && userRepository.existsByEmail(email)) {
+			throw new BadRequestException("Email already in use");
+		}
+
+		user.username = username;
+		user.email = email;
+		return toUserResponse(user);
+	}
+
+	@Transactional
+	public void updatePassword(String userId, String currentPassword, String newPassword) {
+		User user = findUserOr404(userId);
+
+		if (!BcryptUtil.matches(currentPassword, user.password)) {
+			throw new BadRequestException("Current password is incorrect");
+		}
+
+		user.password = BcryptUtil.bcryptHash(newPassword);
+		// Пароль змінився — інвалідовуємо активну сесію (refresh-токен)
+		redisService.deleteRefreshToken(userId);
+	}
+
+	@Transactional
+	public void deleteUser(String userId) {
+		User user = findUserOr404(userId);
+		redisService.deleteRefreshToken(userId);
+		userRepository.delete(user);
+	}
+
 	public java.util.List<UserResponse> getAllUsers() {
 		return userRepository.listAll().stream()
 			.map(this::toUserResponse)
@@ -95,6 +133,13 @@ public class AuthService {
 			throw new BadRequestException("Invalid role: " + role);
 		}
 
+		User user = findUserOr404(userId);
+		user.role = newRole;
+		return toUserResponse(user);
+	}
+
+	// Парсить UUID і дістає користувача або кидає 400/404
+	private User findUserOr404(String userId) {
 		java.util.UUID id;
 		try {
 			id = java.util.UUID.fromString(userId);
@@ -106,9 +151,7 @@ public class AuthService {
 		if (user == null) {
 			throw new jakarta.ws.rs.NotFoundException("User not found");
 		}
-
-		user.role = newRole;
-		return toUserResponse(user);
+		return user;
 	}
 
 	private TokenResponse generateTokenPair(User user) {
