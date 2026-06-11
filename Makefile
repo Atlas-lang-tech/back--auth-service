@@ -1,5 +1,5 @@
 .PHONY: help build up down logs logs-service logs-db logs-redis logs-kafka restart clean rebuild status shell ps \
-        db-shell redis-cli kafka-cli test dev build-native push
+        db-shell redis-cli kafka-cli test coverage dev build-native push
 
 # Colors for output
 GREEN := \033[0;32m
@@ -56,7 +56,8 @@ help: ## Display this help message
 	@echo "$(GREEN)BUILD & DEPLOY$(NC)"
 	@echo "  $(YELLOW)make build-native$(NC)       Build GraalVM native image"
 	@echo "  $(YELLOW)make push$(NC)               Push image to registry (requires TAG)"
-	@echo "  $(YELLOW)make test$(NC)               Run tests in container"
+	@echo "  $(YELLOW)make test$(NC)               Run all tests + coverage gate"
+	@echo "  $(YELLOW)make coverage$(NC)           Run tests and open coverage report"
 	@echo ""
 	@echo "$(GREEN)API & HEALTH$(NC)"
 	@echo "  $(YELLOW)make swagger$(NC)            Open Swagger UI in browser"
@@ -243,9 +244,17 @@ health: ## Check service health
 # BUILD & DEPLOY
 # ============================================================================
 
-test: ## Run tests in container
-	@echo "$(BLUE)▶ Running tests...$(NC)"
-	./mvnw clean test
+test: ## Run all tests + coverage gate (needs Docker for Testcontainers)
+	@echo "$(BLUE)▶ Running tests with coverage gate...$(NC)"
+	./mvnw -B clean verify
+
+coverage: ## Run tests and open the JaCoCo HTML coverage report
+	@echo "$(BLUE)▶ Generating coverage report...$(NC)"
+	./mvnw -B clean verify
+	@echo "$(GREEN)✓ Report: target/site/jacoco/index.html$(NC)"
+	@command -v open >/dev/null 2>&1 && open target/site/jacoco/index.html || \
+	command -v xdg-open >/dev/null 2>&1 && xdg-open target/site/jacoco/index.html || \
+	echo "$(YELLOW)Open manually: target/site/jacoco/index.html$(NC)"
 
 build-native: ## Build GraalVM native image (requires GraalVM)
 	@echo "$(BLUE)▶ Building native image...$(NC)"

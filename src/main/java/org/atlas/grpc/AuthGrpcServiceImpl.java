@@ -1,6 +1,7 @@
 package org.atlas.grpc;
 
 import io.quarkus.grpc.GrpcService;
+import io.smallrye.common.annotation.Blocking;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import java.util.UUID;
@@ -57,6 +58,7 @@ public class AuthGrpcServiceImpl implements AuthGrpcService {
 	}
 
 	@Override
+	@Blocking // findById — блокуючий JDBC, тож виконуємо на worker-потоці, а не на gRPC IO-потоці
 	public Uni<GetUserResponse> getUser(GetUserRequest request) {
 		return Uni.createFrom().item(() -> {
 			try {

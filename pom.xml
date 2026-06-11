@@ -19,6 +19,10 @@
         <quarkus.platform.version>3.31.4</quarkus.platform.version>
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.4</surefire-plugin.version>
+        <testcontainers.version>1.20.4</testcontainers.version>
+        <!-- 0.8.13+ supports Java 24/25 class files; required since tests run on JDK 25 -->
+        <jacoco-plugin.version>0.8.13</jacoco-plugin.version>
+        <jacoco.min-coverage>0.80</jacoco.min-coverage>
     </properties>
 
     <dependencyManagement>
@@ -29,6 +33,33 @@
                 <version>${quarkus.platform.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!--
+                Override the JaCoCo version pulled in by quarkus-jacoco (Quarkus BOM
+                pins 0.8.12, which cannot instrument Java 24+ class files). Keep this
+                in sync with jacoco-plugin.version.
+            -->
+            <dependency>
+                <groupId>org.jacoco</groupId>
+                <artifactId>org.jacoco.agent</artifactId>
+                <version>${jacoco-plugin.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jacoco</groupId>
+                <artifactId>org.jacoco.core</artifactId>
+                <version>${jacoco-plugin.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jacoco</groupId>
+                <artifactId>org.jacoco.report</artifactId>
+                <version>${jacoco-plugin.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -88,8 +119,38 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-junit5-mockito</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-jacoco</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-test-security-jwt</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>io.rest-assured</groupId>
             <artifactId>rest-assured</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -160,6 +221,72 @@
                         <maven.home>${maven.home}</maven.home>
                     </systemPropertyVariables>
                 </configuration>
+            </plugin>
+            <!--
+                Code coverage. The quarkus-jacoco extension instruments @QuarkusTest
+                classes and writes to the same exec file as the agent below
+                (quarkus.jacoco.* configured under the %test profile), so coverage
+                from both plain unit tests and @QuarkusTest integration tests is merged.
+            -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco-plugin.version}</version>
+                <configuration>
+                    <excludes>
+                        <!-- Generated gRPC/proto stubs (AuthGrpcServiceImpl is kept) -->
+                        <exclude>org/atlas/grpc/ValidateToken*</exclude>
+                        <exclude>org/atlas/grpc/GetUser*</exclude>
+                        <exclude>org/atlas/grpc/AuthGrpcService.*</exclude>
+                        <exclude>org/atlas/grpc/AuthGrpcServiceBean*</exclude>
+                        <exclude>org/atlas/grpc/AuthGrpcServiceClient*</exclude>
+                        <exclude>org/atlas/grpc/AuthGrpcServiceGrpc*</exclude>
+                        <exclude>org/atlas/grpc/MutinyAuthGrpcServiceGrpc*</exclude>
+                        <exclude>org/atlas/grpc/AuthGrpc*</exclude>
+                        <exclude>org/atlas/grpc/Auth.*</exclude>
+                        <!-- Hardcoded Resend key, flagged for refactor -->
+                        <exclude>org/atlas/service/EmailService*</exclude>
+                        <!-- Sample resource -->
+                        <exclude>org/atlas/GreetingResource*</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <haltOnFailure>true</haltOnFailure>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.min-coverage}</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
