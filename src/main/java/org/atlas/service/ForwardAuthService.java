@@ -32,13 +32,15 @@ public class ForwardAuthService {
         public int status;
         public String userId;
         public String roles;
-        
+        public String plan;
+
         public CacheEntry() {}
-        
-        public CacheEntry(int status, String userId, String roles) {
+
+        public CacheEntry(int status, String userId, String roles, String plan) {
             this.status = status;
             this.userId = userId;
             this.roles = roles;
+            this.plan = plan;
         }
     }
 
@@ -51,7 +53,7 @@ public class ForwardAuthService {
                 if (cachedValue != null) {
                     try {
                         CacheEntry entry = objectMapper.readValue(cachedValue, CacheEntry.class);
-                        return Uni.createFrom().item(buildResponse(entry.status, entry.userId, entry.roles));
+                        return Uni.createFrom().item(buildResponse(entry.status, entry.userId, entry.roles, entry.plan));
                     } catch (Exception e) {
                         return processAndCache(method, path, token, cacheKey);
                     }
@@ -71,6 +73,7 @@ public class ForwardAuthService {
     private Uni<Response> processAndCache(String method, String path, String token, String cacheKey) {
         String userId = null;
         List<String> rolesList = Collections.emptyList();
+        String plan = null;
         long tokenExpSeconds = -1;
         int status = 401; // Default to unauthenticated
 
@@ -78,7 +81,12 @@ public class ForwardAuthService {
             try {
                 JsonWebToken jwt = jwtParser.parse(token);
                 userId = jwt.getSubject();
-                
+
+                Object planClaim = jwt.claim("plan").orElse(null);
+                if (planClaim != null) {
+                    plan = planClaim.toString();
+                }
+
                 Set<String> groups = jwt.getGroups();
                 if (groups != null && !groups.isEmpty()) {
                     rolesList = groups.stream().toList();
@@ -104,7 +112,7 @@ public class ForwardAuthService {
         }
 
         String rolesStr = String.join(",", rolesList);
-        CacheEntry entry = new CacheEntry(status, userId, rolesStr);
+        CacheEntry entry = new CacheEntry(status, userId, rolesStr, plan);
         String json;
         try {
             json = objectMapper.writeValueAsString(entry);
@@ -119,11 +127,12 @@ public class ForwardAuthService {
 
         int finalStatus = status;
         String finalUserId = userId;
+        String finalPlan = plan;
         return cacheService.cacheDecision(cacheKey, json, ttl)
-            .onItem().transform(v -> buildResponse(finalStatus, finalUserId, rolesStr));
+            .onItem().transform(v -> buildResponse(finalStatus, finalUserId, rolesStr, finalPlan));
     }
 
-    private Response buildResponse(int status, String userId, String roles) {
+    private Response buildResponse(int status, String userId, String roles, String plan) {
         Response.ResponseBuilder builder = Response.status(status);
         if (status == 200) {
             // Traefik expects the headers so it can pass them downstream
@@ -132,6 +141,9 @@ public class ForwardAuthService {
             }
             if (roles != null && !roles.isBlank()) {
                 builder.header("X-User-Role", roles);
+            }
+            if (plan != null && !plan.isBlank()) {
+                builder.header("X-User-Plan", plan);
             }
         }
         return builder.build();

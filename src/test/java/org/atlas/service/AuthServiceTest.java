@@ -23,8 +23,11 @@ import org.atlas.dto.AuthDto.RegisterRequest;
 import org.atlas.dto.AuthDto.TokenResponse;
 import org.atlas.dto.AuthDto.UserResponse;
 import org.atlas.entity.User;
+import org.atlas.event.UserRegisteredEvent;
 import org.atlas.repository.UserRepository;
 import org.atlas.test.TestFixtures;
+import org.eclipse.microprofile.reactive.messaging.Emitter;
+import org.eclipse.microprofile.reactive.messaging.Message;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -43,6 +46,8 @@ class AuthServiceTest {
     UserRepository userRepository;
     JwtService jwtService;
     RedisService redisService;
+    @SuppressWarnings("unchecked")
+    Emitter<UserRegisteredEvent> userRegisteredEmitter = mock(Emitter.class);
 
     @BeforeEach
     void setUp() {
@@ -53,6 +58,7 @@ class AuthServiceTest {
         service.userRepository = userRepository;
         service.jwtService = jwtService;
         service.redisService = redisService;
+        service.userRegisteredEmitter = userRegisteredEmitter;
 
         when(jwtService.generateAccessToken(any())).thenReturn("access-token");
         when(jwtService.generateRefreshToken(any())).thenReturn("refresh-token");
@@ -90,6 +96,12 @@ class AuthServiceTest {
         assertNotEquals("Password123", saved.password, "пароль має бути захешований");
         assertTrue(BcryptUtil.matches("Password123", saved.password));
         verify(redisService).saveRefreshToken(eq(saved.id.toString()), eq("refresh-token"), eq(604800L));
+
+        // Публікуємо user.registered з id нового користувача
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Message<UserRegisteredEvent>> msgCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(userRegisteredEmitter).send(msgCaptor.capture());
+        assertEquals(saved.id.toString(), msgCaptor.getValue().getPayload().userId());
     }
 
     @Test

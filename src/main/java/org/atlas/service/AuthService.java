@@ -1,14 +1,21 @@
 package org.atlas.service;
 
+import java.util.UUID;
+
 import org.atlas.dto.AuthDto.LoginRequest;
 import org.atlas.dto.AuthDto.RefreshRequest;
 import org.atlas.dto.AuthDto.RegisterRequest;
 import org.atlas.dto.AuthDto.TokenResponse;
 import org.atlas.dto.AuthDto.UserResponse;
 import org.atlas.entity.User;
+import org.atlas.event.UserRegisteredEvent;
 import org.atlas.repository.UserRepository;
+import org.eclipse.microprofile.reactive.messaging.Channel;
+import org.eclipse.microprofile.reactive.messaging.Emitter;
+import org.eclipse.microprofile.reactive.messaging.Message;
 
 import io.quarkus.elytron.security.common.BcryptUtil;
+import io.smallrye.reactive.messaging.rabbitmq.OutgoingRabbitMQMetadata;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -27,6 +34,9 @@ public class AuthService {
 	@Inject
 	RedisService redisService;
 
+	@Channel("user-registered")
+	Emitter<UserRegisteredEvent> userRegisteredEmitter;
+
 
 	@Transactional
 	public TokenResponse register(RegisterRequest request) {
@@ -40,7 +50,20 @@ public class AuthService {
 		user.password = BcryptUtil.bcryptHash(request.password());
 		userRepository.persist(user);
 
+		publishUserRegistered(user);
+
 		return generateTokenPair(user);
+	}
+
+	// Announce the new user so billing can provision a default FREE subscription.
+	// messageId lets the consumer dedupe (the publish happens before commit, so a
+	// rare rollback-after-send is tolerated by an idempotent consumer).
+	private void publishUserRegistered(User user) {
+		OutgoingRabbitMQMetadata metadata = new OutgoingRabbitMQMetadata.Builder()
+			.withMessageId(UUID.randomUUID().toString())
+			.build();
+		userRegisteredEmitter.send(
+			Message.of(new UserRegisteredEvent(user.id.toString())).addMetadata(metadata));
 	}
 
 	public TokenResponse login(LoginRequest request) {

@@ -53,7 +53,7 @@ class ForwardAuthServiceTest {
 
     @Test
     void verify_cacheHit_returnsCachedDecision() throws Exception {
-        String json = objectMapper.writeValueAsString(new CacheEntry(200, "user-1", "ADMIN"));
+        String json = objectMapper.writeValueAsString(new CacheEntry(200, "user-1", "ADMIN", "PRO"));
         when(cacheService.getCachedDecision("cache-key")).thenReturn(Uni.createFrom().item(json));
 
         Response res = doVerify("GET", "/x", "Bearer tok");
@@ -61,8 +61,42 @@ class ForwardAuthServiceTest {
         assertEquals(200, res.getStatus());
         assertEquals("user-1", res.getHeaderString("X-User-Id"));
         assertEquals("ADMIN", res.getHeaderString("X-User-Role"));
+        assertEquals("PRO", res.getHeaderString("X-User-Plan"));
         // при кеш-хіті токен не парситься
         verify(cacheService, org.mockito.Mockito.never()).cacheDecision(anyString(), anyString(), anyLong());
+    }
+
+    @Test
+    void verify_cacheMiss_validToken_includesPlanHeader() throws Exception {
+        when(cacheService.getCachedDecision("cache-key")).thenReturn(Uni.createFrom().nullItem());
+
+        JsonWebToken jwt = mock(JsonWebToken.class);
+        when(jwt.getSubject()).thenReturn("user-77");
+        when(jwt.getGroups()).thenReturn(Set.of("USER"));
+        when(jwt.claim("plan")).thenReturn(Optional.of("PRO"));
+        when(jwt.getExpirationTime()).thenReturn(System.currentTimeMillis() / 1000 + 3600);
+        when(jwtParser.parse("tok")).thenReturn(jwt);
+
+        Response res = doVerify("GET", "/secure", "Bearer tok");
+
+        assertEquals(200, res.getStatus());
+        assertEquals("PRO", res.getHeaderString("X-User-Plan"));
+    }
+
+    @Test
+    void verify_cacheMiss_noPlanClaim_omitsPlanHeader() throws Exception {
+        when(cacheService.getCachedDecision("cache-key")).thenReturn(Uni.createFrom().nullItem());
+
+        JsonWebToken jwt = mock(JsonWebToken.class);
+        when(jwt.getSubject()).thenReturn("user-88");
+        when(jwt.getGroups()).thenReturn(Set.of("USER"));
+        when(jwt.getExpirationTime()).thenReturn(System.currentTimeMillis() / 1000 + 3600);
+        when(jwtParser.parse("tok")).thenReturn(jwt);
+
+        Response res = doVerify("GET", "/secure", "Bearer tok");
+
+        assertEquals(200, res.getStatus());
+        assertNull(res.getHeaderString("X-User-Plan"));
     }
 
     @Test

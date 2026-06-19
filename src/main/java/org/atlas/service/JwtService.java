@@ -30,6 +30,7 @@ public class JwtService {
 			.groups(user.role.name())
 			.claim("email", user.email)
 			.claim("id", user.id)
+			.claim("plan", user.planCode)
 			.expiresAt(Instant.now().plusSeconds(accessTokenExpiry))
 			.sign();
 	}

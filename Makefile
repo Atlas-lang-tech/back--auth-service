@@ -1,5 +1,5 @@
-.PHONY: help build up down logs logs-service logs-db logs-redis logs-kafka restart clean rebuild status shell ps \
-        db-shell redis-cli kafka-cli test coverage dev build-native push
+.PHONY: help build up down logs logs-service logs-db logs-redis logs-rabbitmq restart clean rebuild status shell ps \
+        db-shell redis-cli rabbitmq-cli test coverage dev build-native push
 
 # Colors for output
 GREEN := \033[0;32m
@@ -41,12 +41,12 @@ help: ## Display this help message
 	@echo "  $(YELLOW)make logs-service$(NC)       Show logs from auth-service"
 	@echo "  $(YELLOW)make logs-db$(NC)            Show logs from PostgreSQL"
 	@echo "  $(YELLOW)make logs-redis$(NC)         Show logs from Redis"
-	@echo "  $(YELLOW)make logs-kafka$(NC)         Show logs from Kafka"
+	@echo "  $(YELLOW)make logs-rabbitmq$(NC)      Show logs from RabbitMQ"
 	@echo ""
 	@echo "$(GREEN)DATABASE & TOOLS$(NC)"
 	@echo "  $(YELLOW)make db-shell$(NC)           Open PostgreSQL shell"
 	@echo "  $(YELLOW)make redis-cli$(NC)          Open Redis CLI"
-	@echo "  $(YELLOW)make kafka-cli$(NC)          Open Kafka CLI"
+	@echo "  $(YELLOW)make rabbitmq-cli$(NC)       Open RabbitMQ shell"
 	@echo ""
 	@echo "$(GREEN)SHELL & INSPECT$(NC)"
 	@echo "  $(YELLOW)make shell$(NC)              Open shell in auth-service container"
@@ -153,9 +153,9 @@ logs-redis: ## Show logs from Redis
 	@echo "$(BLUE)▶ Showing logs from Redis (Ctrl+C to exit)...$(NC)"
 	$(DOCKER_COMPOSE) logs -f redis
 
-logs-kafka: ## Show logs from Kafka
-	@echo "$(BLUE)▶ Showing logs from Kafka (Ctrl+C to exit)...$(NC)"
-	$(DOCKER_COMPOSE) logs -f kafka
+logs-rabbitmq: ## Show logs from RabbitMQ
+	@echo "$(BLUE)▶ Showing logs from RabbitMQ (Ctrl+C to exit)...$(NC)"
+	$(DOCKER_COMPOSE) logs -f rabbitmq
 
 # ============================================================================
 # DATABASE & TOOLS
@@ -180,9 +180,9 @@ redis-cli: ## Open Redis CLI
 	@echo ""
 	$(DOCKER_COMPOSE) exec redis redis-cli
 
-kafka-cli: ## Open Kafka CLI
-	@echo "$(BLUE)▶ Opening Kafka CLI (type 'exit' to quit)...$(NC)"
-	$(DOCKER_COMPOSE) exec kafka bash
+rabbitmq-cli: ## Open RabbitMQ shell
+	@echo "$(BLUE)▶ Opening RabbitMQ shell (type 'exit' to quit)...$(NC)"
+	$(DOCKER_COMPOSE) exec rabbitmq sh
 
 # ============================================================================
 # SHELL & INSPECT
@@ -217,7 +217,7 @@ status: ## Show services status and endpoints
 	@echo ""
 	@echo "$(GREEN)Redis$(NC)                redis://localhost:6379"
 	@echo ""
-	@echo "$(GREEN)Kafka$(NC)                localhost:9092"
+	@echo "$(GREEN)RabbitMQ$(NC)             localhost:5672 (UI http://localhost:15672, guest/guest)"
 	@echo "$(BLUE)═══════════════════════════════════════════════════════════$(NC)"
 
 # ============================================================================
@@ -236,8 +236,8 @@ health: ## Check service health
 	@echo "$(YELLOW)Redis:$(NC)"
 	@$(DOCKER_COMPOSE) exec -T redis redis-cli ping && echo "$(GREEN)✓ Redis healthy$(NC)" || echo "$(RED)✗ Redis down$(NC)"
 	@echo ""
-	@echo "$(YELLOW)Kafka:$(NC)"
-	@$(DOCKER_COMPOSE) exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1 && echo "$(GREEN)✓ Kafka healthy$(NC)" || echo "$(RED)✗ Kafka down$(NC)"
+	@echo "$(YELLOW)RabbitMQ:$(NC)"
+	@$(DOCKER_COMPOSE) exec -T rabbitmq rabbitmq-diagnostics -q ping > /dev/null 2>&1 && echo "$(GREEN)✓ RabbitMQ healthy$(NC)" || echo "$(RED)✗ RabbitMQ down$(NC)"
 	@echo ""
 
 # ============================================================================

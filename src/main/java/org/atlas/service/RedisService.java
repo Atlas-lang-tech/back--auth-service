@@ -10,6 +10,7 @@ public class RedisService {
 
 	private static final String REFRESH_TOKEN_PREFIX = "refresh:";
 	private static final String BLACKLIST_PREFIX = "blacklist:";
+	private static final String EVENT_PREFIX = "event:";
 
 	private final StringCommands<String, String> commands;
 
@@ -41,5 +42,15 @@ public class RedisService {
 
 	public boolean isTokenBlacklisted(String jti) {
 		return commands.get(BLACKLIST_PREFIX + jti) != null;
+	}
+
+	// --- Ідемпотентність споживання подій (дедуп за messageId) ---
+
+	public boolean isEventProcessed(String messageId) {
+		return commands.get(EVENT_PREFIX + messageId) != null;
+	}
+
+	public void markEventProcessed(String messageId, long ttlSeconds) {
+		commands.setex(EVENT_PREFIX + messageId, ttlSeconds, "1");
 	}
 }

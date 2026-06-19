@@ -37,41 +37,23 @@ services:
     networks:
       - auth-network
 
-  # Kafka
-  kafka:
-    image: confluentinc/cp-kafka:7.6.0
-    container_name: auth-kafka
+  # RabbitMQ — platform event bus (atlas.events topic exchange)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: auth-rabbitmq
     ports:
-      - "9092:9092"
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Management UI (guest/guest)
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://kafka:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-    depends_on:
-      - zookeeper
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - auth-network
-
-  # Zookeeper (required by Kafka)
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.0
-    container_name: auth-zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
-    volumes:
-      - zookeeper_data:/var/lib/zookeeper/data
     networks:
       - auth-network
 
@@ -91,8 +73,11 @@ services:
       QUARKUS_DATASOURCE_PASSWORD: auth_pass
       # Redis
       QUARKUS_REDIS_HOSTS: redis://redis:6379
-      # Kafka
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      # RabbitMQ
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
       # Java options
       JAVA_OPTS: -Xmx512m -Xms256m
     depends_on:
@@ -100,7 +85,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      kafka:
+      rabbitmq:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/q/health/ready"]
@@ -118,4 +103,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
-  zookeeper_data:
+  rabbitmq_data:

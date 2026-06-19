@@ -32,6 +32,9 @@ public class User extends PanacheEntityBase {
 	@Column(nullable = false)
 	public boolean active = true;
 
+	@Column(name = "plan_code", nullable = false)
+	public String planCode = "FREE";
+
 	@CreationTimestamp
 	@Column(name = "created_at", updatable = false)
 	public LocalDateTime createdAt;
