@@ -53,13 +53,37 @@ public class ForwardAuthService {
                 if (cachedValue != null) {
                     try {
                         CacheEntry entry = objectMapper.readValue(cachedValue, CacheEntry.class);
-                        return Uni.createFrom().item(buildResponse(entry.status, entry.userId, entry.roles, entry.plan));
+                        // entry.plan is only a fallback; the live key wins (immediate plan changes).
+                        return finalizeResponse(entry.status, entry.userId, entry.roles, entry.plan);
                     } catch (Exception e) {
                         return processAndCache(method, path, token, cacheKey);
                     }
                 } else {
                     return processAndCache(method, path, token, cacheKey);
                 }
+            });
+    }
+
+    /**
+     * Resolves X-User-Plan from the live `plan:<userId>` Redis key (written by the
+     * subscription.changed consumer) so plan changes apply on the next /verify. The
+     * token's plan claim is only a fallback used to seed the key when it is absent.
+     */
+    private Uni<Response> finalizeResponse(int status, String userId, String roles, String fallbackPlan) {
+        if (status != 200 || userId == null || userId.isBlank()) {
+            return Uni.createFrom().item(buildResponse(status, userId, roles, null));
+        }
+        return cacheService.getUserPlan(userId)
+            .onItem().transformToUni(livePlan -> {
+                if (livePlan != null && !livePlan.isBlank()) {
+                    return Uni.createFrom().item(buildResponse(status, userId, roles, livePlan));
+                }
+                if (fallbackPlan != null && !fallbackPlan.isBlank()) {
+                    // Seed the live key (NX so a fresher consumer write is never clobbered).
+                    return cacheService.seedUserPlan(userId, fallbackPlan)
+                        .onItem().transform(v -> buildResponse(status, userId, roles, fallbackPlan));
+                }
+                return Uni.createFrom().item(buildResponse(status, userId, roles, null));
             });
     }
 
@@ -129,7 +153,7 @@ public class ForwardAuthService {
         String finalUserId = userId;
         String finalPlan = plan;
         return cacheService.cacheDecision(cacheKey, json, ttl)
-            .onItem().transform(v -> buildResponse(finalStatus, finalUserId, rolesStr, finalPlan));
+            .onItem().transformToUni(v -> finalizeResponse(finalStatus, finalUserId, rolesStr, finalPlan));
     }
 
     private Response buildResponse(int status, String userId, String roles, String plan) {

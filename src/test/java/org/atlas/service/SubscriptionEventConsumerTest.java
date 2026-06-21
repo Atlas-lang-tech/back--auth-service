@@ -44,6 +44,7 @@ class SubscriptionEventConsumerTest {
         consumer.applySubscriptionChange("msg-1", id.toString(), "PRO");
 
         assertEquals("PRO", user.planCode);
+        verify(redisService).setUserPlan(id.toString(), "PRO");
         verify(redisService).markEventProcessed(eq("msg-1"), anyLong());
     }
 
@@ -54,6 +55,7 @@ class SubscriptionEventConsumerTest {
         consumer.applySubscriptionChange("msg-dup", UUID.randomUUID().toString(), "PRO");
 
         verify(userRepository, never()).findById(any());
+        verify(redisService, never()).setUserPlan(anyString(), anyString());
         verify(redisService, never()).markEventProcessed(anyString(), anyLong());
     }
 
@@ -65,6 +67,7 @@ class SubscriptionEventConsumerTest {
         consumer.applySubscriptionChange("msg-2", id.toString(), "PRO");
 
         verify(userRepository).findById(id);
+        verify(redisService, never()).setUserPlan(anyString(), anyString());
         verify(redisService, never()).markEventProcessed(anyString(), anyLong());
     }
 
@@ -85,6 +88,7 @@ class SubscriptionEventConsumerTest {
         consumer.applySubscriptionChange(null, id.toString(), "PREMIUM");
 
         assertEquals("PREMIUM", user.planCode);
+        verify(redisService).setUserPlan(id.toString(), "PREMIUM");
         verify(redisService, never()).isEventProcessed(anyString());
         verify(redisService, never()).markEventProcessed(anyString(), anyLong());
     }

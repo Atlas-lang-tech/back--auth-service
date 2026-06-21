@@ -20,8 +20,10 @@ import jakarta.transaction.Transactional;
  * Слухає {@code subscription.changed} (публікує billing) і оновлює planCode
  * користувача. Споживання ідемпотентне — дедуп за RabbitMQ messageId через Redis.
  *
- * Кеш рішень ForwardAuth тут НЕ інвалідовується свідомо: план зашитий у JWT-claim,
- * а TTL кешу ≤60с, тож новий план приїде природно на наступному refresh токена.
+ * Окрім БД, одразу пишемо живий ключ {@code plan:<userId>} у Redis — саме його
+ * читає ForwardAuth для X-User-Plan. Завдяки цьому новий план застосовується вже
+ * на наступному /verify, не чекаючи рефрешу access-токена (JWT-claim — лише
+ * fallback при відсутньому ключі).
  */
 @ApplicationScoped
 public class SubscriptionEventConsumer {
@@ -70,6 +72,8 @@ public class SubscriptionEventConsumer {
 		}
 
 		user.planCode = planCode;
+		// Live mirror for ForwardAuth so the new plan is served immediately.
+		redisService.setUserPlan(userId, planCode);
 
 		if (messageId != null) {
 			redisService.markEventProcessed(messageId, DEDUP_TTL_SECONDS);

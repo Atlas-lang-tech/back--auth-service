@@ -19,6 +19,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.PermitAll;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
@@ -187,7 +188,7 @@ public class AuthResource {
 
     @GET
     @Path("/users")
-    @Authenticated
+    @RolesAllowed("ADMIN")
     @Operation(summary = "Get all users")
     public Response getAllUsers() {
         List<UserResponse> users = authService.getAllUsers();
@@ -200,7 +201,7 @@ public class AuthResource {
 
     @PATCH
     @Path("/user/{id}/role")
-    @Authenticated
+    @RolesAllowed("ADMIN")
     @Operation(summary = "Update user role")
     public Response updateRole(@PathParam("id") String id, @Valid UpdateRoleRequest request) {
         UserResponse user = authService.updateRole(id, request.role());

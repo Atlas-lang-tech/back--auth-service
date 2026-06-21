@@ -11,6 +11,7 @@ public class RedisService {
 	private static final String REFRESH_TOKEN_PREFIX = "refresh:";
 	private static final String BLACKLIST_PREFIX = "blacklist:";
 	private static final String EVENT_PREFIX = "event:";
+	private static final String USER_PLAN_PREFIX = "plan:";
 
 	private final StringCommands<String, String> commands;
 
@@ -52,5 +53,12 @@ public class RedisService {
 
 	public void markEventProcessed(String messageId, long ttlSeconds) {
 		commands.setex(EVENT_PREFIX + messageId, ttlSeconds, "1");
+	}
+
+	// --- Live per-user plan (read by ForwardAuth to emit X-User-Plan) ---
+
+	/** Authoritative write of a user's current plan from subscription.changed. */
+	public void setUserPlan(String userId, String plan) {
+		commands.set(USER_PLAN_PREFIX + userId, plan);
 	}
 }

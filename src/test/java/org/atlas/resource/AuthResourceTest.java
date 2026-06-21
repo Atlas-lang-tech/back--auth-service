@@ -7,7 +7,12 @@ import static org.hamcrest.Matchers.notNullValue;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
 import java.util.Map;
+import java.util.UUID;
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
+import jakarta.inject.Inject;
+import org.atlas.entity.User;
+import org.atlas.repository.UserRepository;
 import org.atlas.test.AbstractIntegrationTest;
 import org.atlas.test.TestFixtures;
 import org.junit.jupiter.api.Test;
@@ -15,6 +20,9 @@ import org.junit.jupiter.api.Test;
 /** End-to-end тести REST-ендпоінтів AuthResource через HTTP (RestAssured). */
 @QuarkusTest
 class AuthResourceTest extends AbstractIntegrationTest {
+
+    @Inject
+    UserRepository userRepository;
 
     /** Реєструє нового користувача й повертає його дані разом з токенами. */
     private Cred register() {
@@ -33,6 +41,30 @@ class AuthResourceTest extends AbstractIntegrationTest {
     }
 
     record Cred(String email, String id, String accessToken, String refreshToken) {}
+
+    /**
+     * Registers a user, promotes them to ADMIN in the DB and re-logs in so the
+     * returned access token carries the ADMIN group (used to exercise
+     * `@RolesAllowed("ADMIN")` endpoints).
+     */
+    private Cred registerAdmin() {
+        Cred c = register();
+        QuarkusTransaction.requiringNew().run(() -> {
+            User u = userRepository.findById(UUID.fromString(c.id()));
+            u.role = User.Role.ADMIN;
+        });
+        Response r = given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("email", c.email(), "password", "Password123"))
+            .when().post("/api/auth/login");
+        r.then().statusCode(200);
+        return new Cred(
+            c.email(),
+            c.id(),
+            r.jsonPath().getString("token.accessToken"),
+            r.jsonPath().getString("token.refreshToken")
+        );
+    }
 
     // ----------------------------------------------------------------- register
 
@@ -126,14 +158,23 @@ class AuthResourceTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void getAllUsers_withToken_returns200() {
-        Cred c = register();
+    void getAllUsers_asAdmin_returns200() {
+        Cred admin = registerAdmin();
         given()
-            .header("Authorization", "Bearer " + c.accessToken())
+            .header("Authorization", "Bearer " + admin.accessToken())
             .when().get("/api/auth/users")
             .then()
             .statusCode(200)
             .body("$", notNullValue());
+    }
+
+    @Test
+    void getAllUsers_asNonAdmin_returns403() {
+        Cred c = register();
+        given()
+            .header("Authorization", "Bearer " + c.accessToken())
+            .when().get("/api/auth/users")
+            .then().statusCode(403);
     }
 
     @Test
@@ -152,26 +193,38 @@ class AuthResourceTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void updateRole_withToken_changesRole() {
-        Cred c = register();
+    void updateRole_asAdmin_changesRole() {
+        Cred admin = registerAdmin();
+        Cred victim = register();
         given()
-            .header("Authorization", "Bearer " + c.accessToken())
+            .header("Authorization", "Bearer " + admin.accessToken())
             .contentType(ContentType.JSON)
             .body(Map.of("role", "ADMIN"))
-            .when().patch("/api/auth/user/" + c.id() + "/role")
+            .when().patch("/api/auth/user/" + victim.id() + "/role")
             .then()
             .statusCode(200)
             .body("role", equalTo("ADMIN"));
     }
 
     @Test
-    void updateRole_invalidRole_returns400() {
+    void updateRole_asNonAdmin_returns403() {
         Cred c = register();
         given()
             .header("Authorization", "Bearer " + c.accessToken())
             .contentType(ContentType.JSON)
-            .body(Map.of("role", "SUPERUSER"))
+            .body(Map.of("role", "ADMIN"))
             .when().patch("/api/auth/user/" + c.id() + "/role")
+            .then().statusCode(403);
+    }
+
+    @Test
+    void updateRole_invalidRole_returns400() {
+        Cred admin = registerAdmin();
+        given()
+            .header("Authorization", "Bearer " + admin.accessToken())
+            .contentType(ContentType.JSON)
+            .body(Map.of("role", "SUPERUSER"))
+            .when().patch("/api/auth/user/" + admin.id() + "/role")
             .then().statusCode(400);
     }
 

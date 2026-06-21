@@ -45,6 +45,10 @@ class ForwardAuthServiceTest {
         when(cacheService.generateKey(any(), anyString(), anyString())).thenReturn("cache-key");
         when(cacheService.cacheDecision(anyString(), anyString(), anyLong()))
             .thenReturn(Uni.createFrom().voidItem());
+        // By default no live plan key → fall back to the token claim and seed it.
+        when(cacheService.getUserPlan(anyString())).thenReturn(Uni.createFrom().nullItem());
+        when(cacheService.seedUserPlan(anyString(), anyString()))
+            .thenReturn(Uni.createFrom().voidItem());
     }
 
     private Response doVerify(String method, String path, String authHeader) {
@@ -64,6 +68,38 @@ class ForwardAuthServiceTest {
         assertEquals("PRO", res.getHeaderString("X-User-Plan"));
         // при кеш-хіті токен не парситься
         verify(cacheService, org.mockito.Mockito.never()).cacheDecision(anyString(), anyString(), anyLong());
+    }
+
+    @Test
+    void verify_livePlanKey_overridesCachedAndTokenPlan() throws Exception {
+        // Cached decision (and token) say PRO, but billing already upgraded the
+        // user — the live key holds ELITE, which must win immediately.
+        String json = objectMapper.writeValueAsString(new CacheEntry(200, "user-1", "USER", "PRO"));
+        when(cacheService.getCachedDecision("cache-key")).thenReturn(Uni.createFrom().item(json));
+        when(cacheService.getUserPlan("user-1")).thenReturn(Uni.createFrom().item("ELITE"));
+
+        Response res = doVerify("GET", "/x", "Bearer tok");
+
+        assertEquals("ELITE", res.getHeaderString("X-User-Plan"));
+        // Live key already set → no seeding from the stale claim.
+        verify(cacheService, org.mockito.Mockito.never()).seedUserPlan(anyString(), anyString());
+    }
+
+    @Test
+    void verify_cacheMiss_seedsLivePlanFromClaim() throws Exception {
+        when(cacheService.getCachedDecision("cache-key")).thenReturn(Uni.createFrom().nullItem());
+
+        JsonWebToken jwt = mock(JsonWebToken.class);
+        when(jwt.getSubject()).thenReturn("user-77");
+        when(jwt.getGroups()).thenReturn(Set.of("USER"));
+        when(jwt.claim("plan")).thenReturn(Optional.of("PRO"));
+        when(jwt.getExpirationTime()).thenReturn(System.currentTimeMillis() / 1000 + 3600);
+        when(jwtParser.parse("tok")).thenReturn(jwt);
+
+        Response res = doVerify("GET", "/secure", "Bearer tok");
+
+        assertEquals("PRO", res.getHeaderString("X-User-Plan"));
+        verify(cacheService).seedUserPlan("user-77", "PRO");
     }
 
     @Test
