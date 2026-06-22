@@ -8,6 +8,7 @@ import org.atlas.dto.AuthDto.RefreshRequest;
 import org.atlas.dto.AuthDto.RegisterRequest;
 import org.atlas.dto.AuthDto.TokenResponse;
 import org.atlas.dto.AuthDto.UpdatePasswordRequest;
+import org.atlas.dto.AuthDto.UpdatePlanRequest;
 import org.atlas.dto.AuthDto.UpdateRoleRequest;
 import org.atlas.dto.AuthDto.UpdateUserRequest;
 import org.atlas.dto.AuthDto.UserResponse;
@@ -205,6 +206,19 @@ public class AuthResource {
     @Operation(summary = "Update user role")
     public Response updateRole(@PathParam("id") String id, @Valid UpdateRoleRequest request) {
         UserResponse user = authService.updateRole(id, request.role());
+        return Response.ok(user).build();
+    }
+
+    // ------------------------------------------------------------------ //
+    //  UPDATE PLAN
+    // ------------------------------------------------------------------ //
+
+    @PATCH
+    @Path("/user/{id}/plan")
+    @RolesAllowed("ADMIN")
+    @Operation(summary = "Update user plan")
+    public Response updatePlan(@PathParam("id") String id, @Valid UpdatePlanRequest request) {
+        UserResponse user = authService.updatePlan(id, request.planCode());
         return Response.ok(user).build();
     }
 

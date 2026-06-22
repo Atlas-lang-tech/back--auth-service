@@ -161,6 +161,22 @@ public class AuthService {
 		return toUserResponse(user);
 	}
 
+	@Transactional
+	public UserResponse updatePlan(String userId, String planCode) {
+		if (planCode == null || planCode.isBlank()) {
+			throw new BadRequestException("Plan code must not be blank");
+		}
+		String normalized = planCode.trim().toUpperCase();
+
+		User user = findUserOr404(userId);
+		user.planCode = normalized;
+		// Живий mirror у Redis — щоб ForwardAuth віддавав новий план уже на
+		// наступному /verify, не чекаючи рефрешу access-токена (як це робить
+		// споживач subscription.changed).
+		redisService.setUserPlan(userId, normalized);
+		return toUserResponse(user);
+	}
+
 	// Парсить UUID і дістає користувача або кидає 400/404
 	private User findUserOr404(String userId) {
 		java.util.UUID id;
@@ -210,7 +226,8 @@ public class AuthService {
 			user.id.toString(),
 			user.email,
 			user.username,
-			user.role.name()
+			user.role.name(),
+			user.planCode
 		);
 	}
 }

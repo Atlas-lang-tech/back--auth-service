@@ -21,9 +21,11 @@ public class AuthDto {
 
 	public record TokenResponse(String accessToken, String refreshToken, long expiresIn) {}
 
-	public record UserResponse(String id, String email, String username, String role) {}
+	public record UserResponse(String id, String email, String username, String role, String planCode) {}
 
 	public record UpdateRoleRequest(@NotBlank String role) {}
+
+	public record UpdatePlanRequest(@NotBlank String planCode) {}
 
 	public record UpdateUserRequest(
 		@NotBlank @Size(min = 3, max = 50) String username,

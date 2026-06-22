@@ -229,6 +229,42 @@ class AuthResourceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void updatePlan_asAdmin_changesPlan() {
+        Cred admin = registerAdmin();
+        Cred victim = register();
+        given()
+            .header("Authorization", "Bearer " + admin.accessToken())
+            .contentType(ContentType.JSON)
+            .body(Map.of("planCode", "pro"))
+            .when().patch("/api/auth/user/" + victim.id() + "/plan")
+            .then()
+            .statusCode(200)
+            .body("planCode", equalTo("PRO"));
+    }
+
+    @Test
+    void updatePlan_asNonAdmin_returns403() {
+        Cred c = register();
+        given()
+            .header("Authorization", "Bearer " + c.accessToken())
+            .contentType(ContentType.JSON)
+            .body(Map.of("planCode", "PRO"))
+            .when().patch("/api/auth/user/" + c.id() + "/plan")
+            .then().statusCode(403);
+    }
+
+    @Test
+    void updatePlan_blankPlan_returns400() {
+        Cred admin = registerAdmin();
+        given()
+            .header("Authorization", "Bearer " + admin.accessToken())
+            .contentType(ContentType.JSON)
+            .body(Map.of("planCode", ""))
+            .when().patch("/api/auth/user/" + admin.id() + "/plan")
+            .then().statusCode(400);
+    }
+
+    @Test
     void updatePassword_withToken_returns204() {
         Cred c = register();
         given()

@@ -9,6 +9,7 @@ import org.atlas.dto.AuthDto.LoginRequest;
 import org.atlas.dto.AuthDto.RefreshRequest;
 import org.atlas.dto.AuthDto.RegisterRequest;
 import org.atlas.dto.AuthDto.UpdatePasswordRequest;
+import org.atlas.dto.AuthDto.UpdatePlanRequest;
 import org.atlas.dto.AuthDto.UpdateRoleRequest;
 import org.atlas.dto.AuthDto.UpdateUserRequest;
 import io.quarkus.test.junit.QuarkusTest;
@@ -82,5 +83,11 @@ class AuthDtoValidationTest extends AbstractIntegrationTest {
     void updateRoleRequest_blank_fails() {
         assertFalse(validator.validate(new UpdateRoleRequest("")).isEmpty());
         assertTrue(validator.validate(new UpdateRoleRequest("ADMIN")).isEmpty());
+    }
+
+    @Test
+    void updatePlanRequest_blank_fails() {
+        assertFalse(validator.validate(new UpdatePlanRequest("")).isEmpty());
+        assertTrue(validator.validate(new UpdatePlanRequest("PRO")).isEmpty());
     }
 }

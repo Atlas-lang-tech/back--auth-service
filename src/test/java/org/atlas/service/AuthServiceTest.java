@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -332,5 +333,27 @@ class AuthServiceTest {
         assertThrows(BadRequestException.class, () ->
             service.updateRole(UUID.randomUUID().toString(), "SUPERUSER")
         );
+    }
+
+    // --------------------------------------------------------------- updatePlan
+
+    @Test
+    void updatePlan_valid_updatesPlanAndMirrorsToRedis() {
+        UUID id = UUID.randomUUID();
+        User user = TestFixtures.transientUser(id, "a@b.com", User.Role.USER);
+        when(userRepository.findById(id)).thenReturn(user);
+
+        UserResponse res = service.updatePlan(id.toString(), "pro");
+        assertEquals("PRO", res.planCode());
+        assertEquals("PRO", user.planCode);
+        verify(redisService).setUserPlan(id.toString(), "PRO");
+    }
+
+    @Test
+    void updatePlan_blank_throwsBadRequest() {
+        assertThrows(BadRequestException.class, () ->
+            service.updatePlan(UUID.randomUUID().toString(), "  ")
+        );
+        verify(redisService, never()).setUserPlan(anyString(), anyString());
     }
 }
