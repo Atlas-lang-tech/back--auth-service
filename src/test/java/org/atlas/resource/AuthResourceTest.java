@@ -309,4 +309,51 @@ class AuthResourceTest extends AbstractIntegrationTest {
             .when().delete("/api/auth/user/" + c.id())
             .then().statusCode(204);
     }
+
+    // -------------------------------------------------- verify / reset password
+
+    @Test
+    void verifyEmail_invalidToken_returns400() {
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("token", "nonexistent-token"))
+            .when().post("/api/auth/verify-email")
+            .then().statusCode(400);
+    }
+
+    @Test
+    void forgotPassword_alwaysReturns204() {
+        // Існуючий користувач
+        Cred c = register();
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("email", c.email()))
+            .when().post("/api/auth/forgot-password")
+            .then().statusCode(204);
+
+        // Неіснуючий — теж 204 (не розкриваємо наявність акаунта)
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("email", TestFixtures.randomEmail()))
+            .when().post("/api/auth/forgot-password")
+            .then().statusCode(204);
+    }
+
+    @Test
+    void forgotPassword_invalidEmail_returns400() {
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("email", "not-an-email"))
+            .when().post("/api/auth/forgot-password")
+            .then().statusCode(400);
+    }
+
+    @Test
+    void resetPassword_invalidToken_returns400() {
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("token", "nonexistent-token", "newPassword", "NewPassword456"))
+            .when().post("/api/auth/reset-password")
+            .then().statusCode(400);
+    }
 }

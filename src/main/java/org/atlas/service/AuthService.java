@@ -8,6 +8,7 @@ import org.atlas.dto.AuthDto.RegisterRequest;
 import org.atlas.dto.AuthDto.TokenResponse;
 import org.atlas.dto.AuthDto.UserResponse;
 import org.atlas.entity.User;
+import org.atlas.event.PasswordResetRequestedEvent;
 import org.atlas.event.UserRegisteredEvent;
 import org.atlas.repository.UserRepository;
 import org.eclipse.microprofile.reactive.messaging.Channel;
@@ -37,6 +38,13 @@ public class AuthService {
 	@Channel("user-registered")
 	Emitter<UserRegisteredEvent> userRegisteredEmitter;
 
+	@Channel("password-reset-requested")
+	Emitter<PasswordResetRequestedEvent> passwordResetEmitter;
+
+	// TTL одноразових токенів у Redis
+	private static final long VERIFY_TOKEN_TTL = 24 * 60 * 60; // 24 години
+	private static final long RESET_TOKEN_TTL = 60 * 60;       // 1 година
+
 
 	@Transactional
 	public TokenResponse register(RegisterRequest request) {
@@ -55,15 +63,80 @@ public class AuthService {
 		return generateTokenPair(user);
 	}
 
-	// Announce the new user so billing can provision a default FREE subscription.
-	// messageId lets the consumer dedupe (the publish happens before commit, so a
-	// rare rollback-after-send is tolerated by an idempotent consumer).
+	// Announce the new user so billing can provision a default FREE subscription
+	// and mail-service can send the welcome / verification letter.
+	// The same UUID is the event idempotency key and the RabbitMQ messageId
+	// (publish happens before commit, so a rare rollback-after-send is tolerated
+	// by an idempotent consumer).
 	private void publishUserRegistered(User user) {
+		String eventId = UUID.randomUUID().toString();
+		String verificationToken = UUID.randomUUID().toString();
+		// Токен дійсний один раз протягом VERIFY_TOKEN_TTL — далі POST /verify-email.
+		redisService.saveVerificationToken(verificationToken, user.id.toString(), VERIFY_TOKEN_TTL);
+
 		OutgoingRabbitMQMetadata metadata = new OutgoingRabbitMQMetadata.Builder()
-			.withMessageId(UUID.randomUUID().toString())
+			.withMessageId(eventId)
 			.build();
 		userRegisteredEmitter.send(
-			Message.of(new UserRegisteredEvent(user.id.toString())).addMetadata(metadata));
+			Message.of(new UserRegisteredEvent(
+				eventId,
+				user.id.toString(),
+				user.email,
+				user.username,
+				verificationToken
+			)).addMetadata(metadata));
+	}
+
+	// Підтвердження email за одноразовим токеном. М'яка верифікація: вхід не
+	// блокується, прапорець потрібен лише для UI.
+	@Transactional
+	public void verifyEmail(String token) {
+		String userId = redisService.consumeVerificationToken(token);
+		if (userId == null) {
+			throw new BadRequestException("Invalid or expired verification token");
+		}
+		User user = userRepository.findById(UUID.fromString(userId));
+		if (user == null) {
+			throw new jakarta.ws.rs.NotFoundException("User not found");
+		}
+		user.emailVerified = true;
+	}
+
+	// Ініціація скидання пароля. Завжди завершується тихо (без розкриття, чи існує
+	// email) — лист надсилається лише якщо користувач знайдений.
+	public void requestPasswordReset(String email) {
+		userRepository.findByEmail(email).ifPresent(user -> {
+			String eventId = UUID.randomUUID().toString();
+			String resetToken = UUID.randomUUID().toString();
+			redisService.saveResetToken(resetToken, user.id.toString(), RESET_TOKEN_TTL);
+
+			OutgoingRabbitMQMetadata metadata = new OutgoingRabbitMQMetadata.Builder()
+				.withMessageId(eventId)
+				.build();
+			passwordResetEmitter.send(
+				Message.of(new PasswordResetRequestedEvent(
+					eventId,
+					user.id.toString(),
+					user.email,
+					resetToken
+				)).addMetadata(metadata));
+		});
+	}
+
+	// Завершення скидання пароля за одноразовим токеном.
+	@Transactional
+	public void resetPassword(String token, String newPassword) {
+		String userId = redisService.consumeResetToken(token);
+		if (userId == null) {
+			throw new BadRequestException("Invalid or expired reset token");
+		}
+		User user = userRepository.findById(UUID.fromString(userId));
+		if (user == null) {
+			throw new jakarta.ws.rs.NotFoundException("User not found");
+		}
+		user.password = BcryptUtil.bcryptHash(newPassword);
+		// Скидання пароля інвалідовує активну сесію.
+		redisService.deleteRefreshToken(userId);
 	}
 
 	public TokenResponse login(LoginRequest request) {
@@ -227,7 +300,8 @@ public class AuthService {
 			user.email,
 			user.username,
 			user.role.name(),
-			user.planCode
+			user.planCode,
+			user.emailVerified
 		);
 	}
 }

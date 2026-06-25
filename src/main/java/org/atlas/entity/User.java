@@ -35,6 +35,9 @@ public class User extends PanacheEntityBase {
 	@Column(name = "plan_code", nullable = false)
 	public String planCode = "FREE";
 
+	@Column(name = "email_verified", nullable = false)
+	public boolean emailVerified = false;
+
 	@CreationTimestamp
 	@Column(name = "created_at", updatable = false)
 	public LocalDateTime createdAt;

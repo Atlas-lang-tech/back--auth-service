@@ -24,6 +24,7 @@ import org.atlas.dto.AuthDto.RegisterRequest;
 import org.atlas.dto.AuthDto.TokenResponse;
 import org.atlas.dto.AuthDto.UserResponse;
 import org.atlas.entity.User;
+import org.atlas.event.PasswordResetRequestedEvent;
 import org.atlas.event.UserRegisteredEvent;
 import org.atlas.repository.UserRepository;
 import org.atlas.test.TestFixtures;
@@ -49,6 +50,8 @@ class AuthServiceTest {
     RedisService redisService;
     @SuppressWarnings("unchecked")
     Emitter<UserRegisteredEvent> userRegisteredEmitter = mock(Emitter.class);
+    @SuppressWarnings("unchecked")
+    Emitter<PasswordResetRequestedEvent> passwordResetEmitter = mock(Emitter.class);
 
     @BeforeEach
     void setUp() {
@@ -60,6 +63,7 @@ class AuthServiceTest {
         service.jwtService = jwtService;
         service.redisService = redisService;
         service.userRegisteredEmitter = userRegisteredEmitter;
+        service.passwordResetEmitter = passwordResetEmitter;
 
         when(jwtService.generateAccessToken(any())).thenReturn("access-token");
         when(jwtService.generateRefreshToken(any())).thenReturn("refresh-token");
@@ -355,5 +359,117 @@ class AuthServiceTest {
             service.updatePlan(UUID.randomUUID().toString(), "  ")
         );
         verify(redisService, never()).setUserPlan(anyString(), anyString());
+    }
+
+    // ------------------------------------------------------------ register event
+
+    @Test
+    void register_publishesEnrichedEventAndSavesVerificationToken() {
+        when(userRepository.existsByEmail("a@b.com")).thenReturn(false);
+        doAnswer(inv -> {
+            ((User) inv.getArgument(0)).id = UUID.randomUUID();
+            return null;
+        }).when(userRepository).persist(any(User.class));
+
+        service.register(new RegisterRequest("a@b.com", "alice", "Password123"));
+
+        // Токен верифікації збережено в Redis з TTL > 0
+        ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
+        verify(redisService).saveVerificationToken(tokenCaptor.capture(), anyString(), anyLong());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Message<UserRegisteredEvent>> msgCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(userRegisteredEmitter).send(msgCaptor.capture());
+        UserRegisteredEvent ev = msgCaptor.getValue().getPayload();
+        assertEquals("a@b.com", ev.email());
+        assertEquals("alice", ev.name());
+        // У подію кладемо саме той токен, що збережений у Redis
+        assertEquals(tokenCaptor.getValue(), ev.verificationToken());
+        assertEquals(ev.userId(), ev.userId());
+    }
+
+    // ----------------------------------------------------------------- verifyEmail
+
+    @Test
+    void verifyEmail_validToken_marksVerified() {
+        UUID id = UUID.randomUUID();
+        User user = TestFixtures.transientUser(id, "a@b.com", User.Role.USER);
+        when(redisService.consumeVerificationToken("vt")).thenReturn(id.toString());
+        when(userRepository.findById(id)).thenReturn(user);
+
+        service.verifyEmail("vt");
+
+        assertTrue(user.emailVerified);
+    }
+
+    @Test
+    void verifyEmail_invalidToken_throwsBadRequest() {
+        when(redisService.consumeVerificationToken("bad")).thenReturn(null);
+        assertThrows(BadRequestException.class, () -> service.verifyEmail("bad"));
+    }
+
+    @Test
+    void verifyEmail_userMissing_throwsNotFound() {
+        UUID id = UUID.randomUUID();
+        when(redisService.consumeVerificationToken("vt")).thenReturn(id.toString());
+        when(userRepository.findById(id)).thenReturn(null);
+        assertThrows(NotFoundException.class, () -> service.verifyEmail("vt"));
+    }
+
+    // --------------------------------------------------------- requestPasswordReset
+
+    @Test
+    void requestPasswordReset_userExists_savesTokenAndPublishesEvent() {
+        UUID id = UUID.randomUUID();
+        User user = TestFixtures.transientUser(id, "a@b.com", User.Role.USER);
+        when(userRepository.findByEmail("a@b.com")).thenReturn(Optional.of(user));
+
+        service.requestPasswordReset("a@b.com");
+
+        ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
+        verify(redisService).saveResetToken(tokenCaptor.capture(), eq(id.toString()), anyLong());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Message<PasswordResetRequestedEvent>> msgCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(passwordResetEmitter).send(msgCaptor.capture());
+        PasswordResetRequestedEvent ev = msgCaptor.getValue().getPayload();
+        assertEquals("a@b.com", ev.email());
+        assertEquals(tokenCaptor.getValue(), ev.resetToken());
+    }
+
+    @Test
+    void requestPasswordReset_userMissing_isSilentNoOp() {
+        when(userRepository.findByEmail("missing@b.com")).thenReturn(Optional.empty());
+
+        service.requestPasswordReset("missing@b.com"); // no throw
+
+        verify(redisService, never()).saveResetToken(anyString(), anyString(), anyLong());
+        verify(passwordResetEmitter, never()).send(any(Message.class));
+    }
+
+    // ---------------------------------------------------------------- resetPassword
+
+    @Test
+    void resetPassword_validToken_rehashesAndInvalidatesSession() {
+        UUID id = UUID.randomUUID();
+        User user = TestFixtures.transientUser(id, "a@b.com", User.Role.USER);
+        String oldHash = user.password;
+        when(redisService.consumeResetToken("rt")).thenReturn(id.toString());
+        when(userRepository.findById(id)).thenReturn(user);
+
+        service.resetPassword("rt", "NewPassword456");
+
+        assertNotEquals(oldHash, user.password);
+        assertTrue(BcryptUtil.matches("NewPassword456", user.password));
+        verify(redisService).deleteRefreshToken(id.toString());
+    }
+
+    @Test
+    void resetPassword_invalidToken_throwsBadRequest() {
+        when(redisService.consumeResetToken("bad")).thenReturn(null);
+        assertThrows(BadRequestException.class, () ->
+            service.resetPassword("bad", "NewPassword456")
+        );
+        verify(redisService, never()).deleteRefreshToken(anyString());
     }
 }

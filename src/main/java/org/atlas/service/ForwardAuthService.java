@@ -33,14 +33,16 @@ public class ForwardAuthService {
         public String userId;
         public String roles;
         public String plan;
+        public String email;
 
         public CacheEntry() {}
 
-        public CacheEntry(int status, String userId, String roles, String plan) {
+        public CacheEntry(int status, String userId, String roles, String plan, String email) {
             this.status = status;
             this.userId = userId;
             this.roles = roles;
             this.plan = plan;
+            this.email = email;
         }
     }
 
@@ -54,7 +56,7 @@ public class ForwardAuthService {
                     try {
                         CacheEntry entry = objectMapper.readValue(cachedValue, CacheEntry.class);
                         // entry.plan is only a fallback; the live key wins (immediate plan changes).
-                        return finalizeResponse(entry.status, entry.userId, entry.roles, entry.plan);
+                        return finalizeResponse(entry.status, entry.userId, entry.roles, entry.plan, entry.email);
                     } catch (Exception e) {
                         return processAndCache(method, path, token, cacheKey);
                     }
@@ -69,21 +71,21 @@ public class ForwardAuthService {
      * subscription.changed consumer) so plan changes apply on the next /verify. The
      * token's plan claim is only a fallback used to seed the key when it is absent.
      */
-    private Uni<Response> finalizeResponse(int status, String userId, String roles, String fallbackPlan) {
+    private Uni<Response> finalizeResponse(int status, String userId, String roles, String fallbackPlan, String email) {
         if (status != 200 || userId == null || userId.isBlank()) {
-            return Uni.createFrom().item(buildResponse(status, userId, roles, null));
+            return Uni.createFrom().item(buildResponse(status, userId, roles, null, email));
         }
         return cacheService.getUserPlan(userId)
             .onItem().transformToUni(livePlan -> {
                 if (livePlan != null && !livePlan.isBlank()) {
-                    return Uni.createFrom().item(buildResponse(status, userId, roles, livePlan));
+                    return Uni.createFrom().item(buildResponse(status, userId, roles, livePlan, email));
                 }
                 if (fallbackPlan != null && !fallbackPlan.isBlank()) {
                     // Seed the live key (NX so a fresher consumer write is never clobbered).
                     return cacheService.seedUserPlan(userId, fallbackPlan)
-                        .onItem().transform(v -> buildResponse(status, userId, roles, fallbackPlan));
+                        .onItem().transform(v -> buildResponse(status, userId, roles, fallbackPlan, email));
                 }
-                return Uni.createFrom().item(buildResponse(status, userId, roles, null));
+                return Uni.createFrom().item(buildResponse(status, userId, roles, null, email));
             });
     }
 
@@ -98,6 +100,7 @@ public class ForwardAuthService {
         String userId = null;
         List<String> rolesList = Collections.emptyList();
         String plan = null;
+        String email = null;
         long tokenExpSeconds = -1;
         int status = 401; // Default to unauthenticated
 
@@ -109,6 +112,11 @@ public class ForwardAuthService {
                 Object planClaim = jwt.claim("plan").orElse(null);
                 if (planClaim != null) {
                     plan = planClaim.toString();
+                }
+
+                Object emailClaim = jwt.claim("email").orElse(null);
+                if (emailClaim != null) {
+                    email = emailClaim.toString();
                 }
 
                 Set<String> groups = jwt.getGroups();
@@ -136,7 +144,7 @@ public class ForwardAuthService {
         }
 
         String rolesStr = String.join(",", rolesList);
-        CacheEntry entry = new CacheEntry(status, userId, rolesStr, plan);
+        CacheEntry entry = new CacheEntry(status, userId, rolesStr, plan, email);
         String json;
         try {
             json = objectMapper.writeValueAsString(entry);
@@ -152,11 +160,12 @@ public class ForwardAuthService {
         int finalStatus = status;
         String finalUserId = userId;
         String finalPlan = plan;
+        String finalEmail = email;
         return cacheService.cacheDecision(cacheKey, json, ttl)
-            .onItem().transformToUni(v -> finalizeResponse(finalStatus, finalUserId, rolesStr, finalPlan));
+            .onItem().transformToUni(v -> finalizeResponse(finalStatus, finalUserId, rolesStr, finalPlan, finalEmail));
     }
 
-    private Response buildResponse(int status, String userId, String roles, String plan) {
+    private Response buildResponse(int status, String userId, String roles, String plan, String email) {
         Response.ResponseBuilder builder = Response.status(status);
         if (status == 200) {
             // Traefik expects the headers so it can pass them downstream
@@ -168,6 +177,9 @@ public class ForwardAuthService {
             }
             if (plan != null && !plan.isBlank()) {
                 builder.header("X-User-Plan", plan);
+            }
+            if (email != null && !email.isBlank()) {
+                builder.header("X-User-Email", email);
             }
         }
         return builder.build();

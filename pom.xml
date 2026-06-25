@@ -253,8 +253,6 @@
                         <exclude>org/atlas/grpc/MutinyAuthGrpcServiceGrpc*</exclude>
                         <exclude>org/atlas/grpc/AuthGrpc*</exclude>
                         <exclude>org/atlas/grpc/Auth.*</exclude>
-                        <!-- Hardcoded Resend key, flagged for refactor -->
-                        <exclude>org/atlas/service/EmailService*</exclude>
                         <!-- Sample resource -->
                         <exclude>org/atlas/GreetingResource*</exclude>
                     </excludes>

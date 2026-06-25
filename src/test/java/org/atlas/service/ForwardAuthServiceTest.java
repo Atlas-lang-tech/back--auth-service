@@ -57,7 +57,7 @@ class ForwardAuthServiceTest {
 
     @Test
     void verify_cacheHit_returnsCachedDecision() throws Exception {
-        String json = objectMapper.writeValueAsString(new CacheEntry(200, "user-1", "ADMIN", "PRO"));
+        String json = objectMapper.writeValueAsString(new CacheEntry(200, "user-1", "ADMIN", "PRO", "user@b.com"));
         when(cacheService.getCachedDecision("cache-key")).thenReturn(Uni.createFrom().item(json));
 
         Response res = doVerify("GET", "/x", "Bearer tok");
@@ -66,6 +66,7 @@ class ForwardAuthServiceTest {
         assertEquals("user-1", res.getHeaderString("X-User-Id"));
         assertEquals("ADMIN", res.getHeaderString("X-User-Role"));
         assertEquals("PRO", res.getHeaderString("X-User-Plan"));
+        assertEquals("user@b.com", res.getHeaderString("X-User-Email"));
         // при кеш-хіті токен не парситься
         verify(cacheService, org.mockito.Mockito.never()).cacheDecision(anyString(), anyString(), anyLong());
     }
@@ -74,7 +75,7 @@ class ForwardAuthServiceTest {
     void verify_livePlanKey_overridesCachedAndTokenPlan() throws Exception {
         // Cached decision (and token) say PRO, but billing already upgraded the
         // user — the live key holds ELITE, which must win immediately.
-        String json = objectMapper.writeValueAsString(new CacheEntry(200, "user-1", "USER", "PRO"));
+        String json = objectMapper.writeValueAsString(new CacheEntry(200, "user-1", "USER", "PRO", "user@b.com"));
         when(cacheService.getCachedDecision("cache-key")).thenReturn(Uni.createFrom().item(json));
         when(cacheService.getUserPlan("user-1")).thenReturn(Uni.createFrom().item("ELITE"));
 

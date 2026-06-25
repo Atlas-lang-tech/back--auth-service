@@ -49,4 +49,23 @@ class RedisServiceTest extends AbstractIntegrationTest {
         redisService.blacklistToken(jti, 60);
         assertTrue(redisService.isTokenBlacklisted(jti));
     }
+
+    @Test
+    void verificationToken_consumeReturnsUserIdOnceThenNull() {
+        String token = UUID.randomUUID().toString();
+        String userId = UUID.randomUUID().toString();
+        redisService.saveVerificationToken(token, userId, 60);
+        assertEquals(userId, redisService.consumeVerificationToken(token));
+        // Одноразовий — другий виклик уже null
+        assertNull(redisService.consumeVerificationToken(token));
+    }
+
+    @Test
+    void resetToken_consumeReturnsUserIdOnceThenNull() {
+        String token = UUID.randomUUID().toString();
+        String userId = UUID.randomUUID().toString();
+        redisService.saveResetToken(token, userId, 60);
+        assertEquals(userId, redisService.consumeResetToken(token));
+        assertNull(redisService.consumeResetToken(token));
+    }
 }

@@ -12,6 +12,8 @@ public class RedisService {
 	private static final String BLACKLIST_PREFIX = "blacklist:";
 	private static final String EVENT_PREFIX = "event:";
 	private static final String USER_PLAN_PREFIX = "plan:";
+	private static final String VERIFY_TOKEN_PREFIX = "verify:";
+	private static final String RESET_TOKEN_PREFIX = "reset:";
 
 	private final StringCommands<String, String> commands;
 
@@ -60,5 +62,27 @@ public class RedisService {
 	/** Authoritative write of a user's current plan from subscription.changed. */
 	public void setUserPlan(String userId, String plan) {
 		commands.set(USER_PLAN_PREFIX + userId, plan);
+	}
+
+	// --- Одноразові токени підтвердження email / скидання пароля ---
+	// Зберігаємо `<token> -> userId` з TTL. «consume» = get+del: токен дійсний
+	// рівно один раз.
+
+	public void saveVerificationToken(String token, String userId, long ttlSeconds) {
+		commands.setex(VERIFY_TOKEN_PREFIX + token, ttlSeconds, userId);
+	}
+
+	/** Повертає userId і одразу видаляє токен (null — якщо невідомий/прострочений). */
+	public String consumeVerificationToken(String token) {
+		return commands.getdel(VERIFY_TOKEN_PREFIX + token);
+	}
+
+	public void saveResetToken(String token, String userId, long ttlSeconds) {
+		commands.setex(RESET_TOKEN_PREFIX + token, ttlSeconds, userId);
+	}
+
+	/** Повертає userId і одразу видаляє токен (null — якщо невідомий/прострочений). */
+	public String consumeResetToken(String token) {
+		return commands.getdel(RESET_TOKEN_PREFIX + token);
 	}
 }

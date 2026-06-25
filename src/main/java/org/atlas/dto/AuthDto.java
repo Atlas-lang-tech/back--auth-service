@@ -21,7 +21,7 @@ public class AuthDto {
 
 	public record TokenResponse(String accessToken, String refreshToken, long expiresIn) {}
 
-	public record UserResponse(String id, String email, String username, String role, String planCode) {}
+	public record UserResponse(String id, String email, String username, String role, String planCode, boolean emailVerified) {}
 
 	public record UpdateRoleRequest(@NotBlank String role) {}
 
@@ -38,4 +38,15 @@ public class AuthDto {
 	) {}
 
 	public record LoginResponse(TokenResponse token, UserResponse user) {}
+
+	// --- Email verification / password reset ---
+
+	public record VerifyEmailRequest(@NotBlank String token) {}
+
+	public record ForgotPasswordRequest(@NotBlank @Email String email) {}
+
+	public record ResetPasswordRequest(
+		@NotBlank String token,
+		@NotBlank @Size(min = 8, max = 100) String newPassword
+	) {}
 }

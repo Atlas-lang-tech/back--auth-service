@@ -2,18 +2,20 @@ package org.atlas.resource;
 
 import java.util.List;
 
+import org.atlas.dto.AuthDto.ForgotPasswordRequest;
 import org.atlas.dto.AuthDto.LoginRequest;
 import org.atlas.dto.AuthDto.LoginResponse;
 import org.atlas.dto.AuthDto.RefreshRequest;
 import org.atlas.dto.AuthDto.RegisterRequest;
+import org.atlas.dto.AuthDto.ResetPasswordRequest;
 import org.atlas.dto.AuthDto.TokenResponse;
 import org.atlas.dto.AuthDto.UpdatePasswordRequest;
 import org.atlas.dto.AuthDto.UpdatePlanRequest;
 import org.atlas.dto.AuthDto.UpdateRoleRequest;
 import org.atlas.dto.AuthDto.UpdateUserRequest;
 import org.atlas.dto.AuthDto.UserResponse;
+import org.atlas.dto.AuthDto.VerifyEmailRequest;
 import org.atlas.service.AuthService;
-import org.atlas.service.EmailService;
 import org.atlas.service.JwtService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
@@ -49,9 +51,6 @@ public class AuthResource {
 
     @Inject
     JwtService jwtService;
-
-    @Inject
-    EmailService emailService;
 
     // ------------------------------------------------------------------ //
     //  REGISTER
@@ -124,15 +123,42 @@ public class AuthResource {
     }
 
     // ------------------------------------------------------------------ //
-    //  EMAIL (тест)
+    //  VERIFY EMAIL
     // ------------------------------------------------------------------ //
 
     @POST
-    @Path("/email")
+    @Path("/verify-email")
     @PermitAll
-    @Operation(summary = "Send email")
-    public Response sendEmail() {
-        emailService.main();
+    @Operation(summary = "Confirm email by one-time token")
+    public Response verifyEmail(@Valid VerifyEmailRequest request) {
+        authService.verifyEmail(request.token());
+        return Response.noContent().build();
+    }
+
+    // ------------------------------------------------------------------ //
+    //  FORGOT PASSWORD
+    // ------------------------------------------------------------------ //
+
+    @POST
+    @Path("/forgot-password")
+    @PermitAll
+    @Operation(summary = "Request a password-reset email")
+    public Response forgotPassword(@Valid ForgotPasswordRequest request) {
+        // Завжди 204 — не розкриваємо, чи існує користувач з таким email.
+        authService.requestPasswordReset(request.email());
+        return Response.noContent().build();
+    }
+
+    // ------------------------------------------------------------------ //
+    //  RESET PASSWORD
+    // ------------------------------------------------------------------ //
+
+    @POST
+    @Path("/reset-password")
+    @PermitAll
+    @Operation(summary = "Set a new password using a reset token")
+    public Response resetPassword(@Valid ResetPasswordRequest request) {
+        authService.resetPassword(request.token(), request.newPassword());
         return Response.noContent().build();
     }
 
